@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+:root { --background: #f8f8f6; --foreground: #16181d; --muted: #646872; --line: #dededb; --accent: #3559d8; }
+* { box-sizing: border-box; }
+html { background: var(--background); }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-geist), Geist, Arial, sans-serif; }
+::selection { background: #3559d8; color: #fff; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.long-value { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }

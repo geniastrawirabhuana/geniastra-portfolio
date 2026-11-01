@@ -18,19 +18,37 @@ const placeholderHosts = new Set([
   '127.0.0.1',
 ])
 
+const placeholderSuffixes = ['.example.com', '.example.org', '.example.net', '.invalid', '.example', '.test', '.localhost', '.local', '.internal']
+
 function hostValue(value: string) {
-  return value.startsWith('http://') || value.startsWith('https://') ? value : `https://${value}`
+  return /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`
 }
 
-export function getSiteUrl() {
+function isVercelProduction() {
+  return process.env.VERCEL === '1' && process.env.VERCEL_ENV === 'production'
+}
+
+function isPlaceholderHost(hostname: string) {
+  const host = hostname.toLowerCase().replace(/\.$/, '')
+  return placeholderHosts.has(host)
+    || host.startsWith('127.')
+    || host === '[::1]'
+    || host === '[::]'
+    || (!host.includes('.') && !host.startsWith('['))
+    || placeholderSuffixes.some((suffix) => host.endsWith(suffix))
+}
+
+export function getSiteUrl(): URL | undefined {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()
   const productionDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
   const deploymentDomain = process.env.VERCEL_URL?.trim()
-  const fallback = process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:3000'
-  const value = configured || (productionDomain && hostValue(productionDomain)) || (deploymentDomain && hostValue(deploymentDomain)) || fallback
+  const value = configured || (productionDomain && hostValue(productionDomain)) || (deploymentDomain && hostValue(deploymentDomain))
 
   if (!value) {
-    throw new Error('Set NEXT_PUBLIC_SITE_URL or a Vercel production URL before production deployment.')
+    if (isVercelProduction()) {
+      throw new Error('Set NEXT_PUBLIC_SITE_URL or a Vercel production URL before production deployment.')
+    }
+    return process.env.NODE_ENV === 'production' ? undefined : new URL('http://localhost:3000')
   }
 
   let url: URL
@@ -40,20 +58,23 @@ export function getSiteUrl() {
     throw new Error('The public site URL must be a valid absolute URL.')
   }
 
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('The public site URL must use HTTP or HTTPS.')
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+    throw new Error('The public site URL must be a valid absolute HTTP or HTTPS URL.')
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (isVercelProduction()) {
     if (url.protocol !== 'https:') {
       throw new Error('Production public URLs must use HTTPS.')
     }
-    if (placeholderHosts.has(url.hostname) || url.hostname.endsWith('.invalid') || url.hostname.endsWith('.example')) {
+    if (url.username || url.password) {
+      throw new Error('Production public URLs cannot contain credentials.')
+    }
+    if (isPlaceholderHost(url.hostname)) {
       throw new Error('Production public URLs cannot use localhost or a placeholder domain.')
     }
   }
 
-  return url.origin
+  return new URL(url.origin)
 }
 
 export function localePath(locale: Locale, path = '') {

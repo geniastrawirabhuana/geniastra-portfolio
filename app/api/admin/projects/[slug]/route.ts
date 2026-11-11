@@ -3,7 +3,9 @@ import { revalidatePublicProjects } from '@/lib/revalidate-public-projects'
 import { adminAccessError, authorizeAdmin } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { loadAdminProjectRows, projectForAdmin } from '@/lib/supabase/admin-projects'
+import { adminProjectSnapshot } from '@/lib/supabase/admin-project-snapshot'
 import { bundleToJson, normalizeProjectBundle } from '@/lib/supabase/project-validation'
+import { saveProjectWithRefresh } from '@/lib/supabase/save-project-with-refresh'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,8 +30,18 @@ export async function PUT(request: NextRequest, { params }: Context) {
   const originalMediaCount = Array.isArray(bodyMedia) ? bodyMedia.length : 0
   if (!bundle || bundle.media.length !== originalMediaCount || bundle.media.some((item) => !item.storage_path.startsWith(`projects/${existing.id}/`))) return NextResponse.json({ error: 'Periksa slug, kategori, terjemahan, dan metadata gambar proyek.' }, { status: 400 })
   const oldPaths = (existingMedia ?? []).map((item) => item.storage_path)
-  const { data: id, error } = await supabase.rpc('save_project_bundle', bundleToJson(bundle))
-  if (error || !id) return NextResponse.json({ error: error?.message ?? 'Proyek gagal disimpan.' }, { status: 400 })
+  const result = await saveProjectWithRefresh({
+    save: async () => {
+      const { data, error } = await supabase.rpc('save_project_bundle', bundleToJson(bundle))
+      return { data, error }
+    },
+    revalidate: () => revalidatePublicProjects(oldSlug, bundle.project.slug),
+    reload: async (id) => {
+      const [saved] = await loadAdminProjectRows(supabase, [id])
+      return saved ?? null
+    },
+  })
+  if (!result.saved) return NextResponse.json({ error: result.error }, { status: 400 })
   const keptPaths = new Set(bundle.media.map((item) => item.storage_path))
   const removedPaths = oldPaths.filter((path) => !keptPaths.has(path))
   let cleanupWarning: string | undefined
@@ -37,10 +49,9 @@ export async function PUT(request: NextRequest, { params }: Context) {
     const { error: storageError } = await supabase.storage.from('portfolio-media').remove(removedPaths)
     if (storageError) cleanupWarning = 'Data tersimpan, tetapi sebagian gambar lama gagal dibersihkan dari Storage.'
   }
-  const [saved] = await loadAdminProjectRows(supabase, [id]).catch(() => [])
-  if (!saved) return NextResponse.json({ error: 'Proyek tersimpan, tetapi data belum dapat dimuat ulang.' }, { status: 500 })
-  revalidatePublicProjects(oldSlug, bundle.project.slug)
-  return NextResponse.json({ project: projectForAdmin(saved), ...(cleanupWarning ? { warning: cleanupWarning } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
+  const project = result.record ? projectForAdmin(result.record) : adminProjectSnapshot(bundle, result.id)
+  const warning = [result.warning, cleanupWarning].filter(Boolean).join(' ')
+  return NextResponse.json({ project, ...(warning ? { warning } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 export async function DELETE(request: NextRequest, { params }: Context) {

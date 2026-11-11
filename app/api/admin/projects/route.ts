@@ -4,7 +4,9 @@ import { revalidatePublicProjects } from '@/lib/revalidate-public-projects'
 import { adminAccessError, authorizeAdmin } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { loadAdminProjectRows, projectForAdmin } from '@/lib/supabase/admin-projects'
+import { adminProjectSnapshot } from '@/lib/supabase/admin-project-snapshot'
 import { bundleToJson, normalizeProjectBundle } from '@/lib/supabase/project-validation'
+import { saveProjectWithRefresh } from '@/lib/supabase/save-project-with-refresh'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,10 +40,18 @@ export async function POST(request: NextRequest) {
   const bundle = normalizeProjectBundle(body)
   const inputMediaCount = body && Array.isArray(body.media) ? body.media.length : 0
   if (!bundle || bundle.project.id || bundle.media.length !== inputMediaCount || bundle.media.length > 0) return NextResponse.json({ error: 'Simpan draf sebelum mengunggah gambar; periksa juga slug, kategori, dan terjemahan.' }, { status: 400 })
-  const { data, error } = await supabase.rpc('save_project_bundle', bundleToJson(bundle))
-  if (error || !data) return NextResponse.json({ error: error?.message ?? 'Proyek gagal disimpan.' }, { status: 400 })
-  const [saved] = await loadAdminProjectRows(supabase, [data]).catch(() => [])
-  if (!saved) return NextResponse.json({ error: 'Proyek tersimpan, tetapi data belum dapat dimuat ulang.' }, { status: 500 })
-  revalidatePublicProjects(bundle.project.slug)
-  return NextResponse.json({ project: projectForAdmin(saved) }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
+  const result = await saveProjectWithRefresh({
+    save: async () => {
+      const { data, error } = await supabase.rpc('save_project_bundle', bundleToJson(bundle))
+      return { data, error }
+    },
+    revalidate: () => revalidatePublicProjects(bundle.project.slug),
+    reload: async (id) => {
+      const [saved] = await loadAdminProjectRows(supabase, [id])
+      return saved ?? null
+    },
+  })
+  if (!result.saved) return NextResponse.json({ error: result.error }, { status: 400 })
+  const project = result.record ? projectForAdmin(result.record) : adminProjectSnapshot(bundle, result.id)
+  return NextResponse.json({ project, ...(result.warning ? { warning: result.warning } : {}) }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
 }

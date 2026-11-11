@@ -209,13 +209,20 @@ export function AdminPanel({ initialConfigured, initialAuthenticated }: { initia
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Proyek gagal disimpan.')
       const savedProject = normalizeAdminProject(data.project)
-      setProject(savedProject); setEditingSlug(savedProject.slug); await loadProjects()
+      setProject(savedProject); setEditingSlug(savedProject.slug)
+      let projectsReloaded = true
+      try { await loadProjects() } catch { projectsReloaded = false }
       if (hasQueuedImages) {
         setMessage('Draf tersimpan. Gambar terpilih akan diunggah sekarang…')
         const uploadsSucceeded = await uploadSelectedImages(data.project, pendingUploads)
         if (requestedStatus === 'published' && uploadsSucceeded) setMessage('Draf dan gambar tersimpan. Periksa media, lalu terbitkan proyek secara terpisah.')
       } else {
-        setMessage(data.warning || (payload.status === 'published' ? 'Proyek berhasil diterbitkan.' : 'Draf proyek berhasil disimpan.'))
+        const savedMessage = payload.status === 'published' ? 'Proyek berhasil diterbitkan.' : 'Draf proyek berhasil disimpan.'
+        const warnings = [
+          typeof data.warning === 'string' ? data.warning : '',
+          projectsReloaded ? '' : `Daftar admin gagal dimuat ulang.${payload.status === 'published' ? ' Publikasi sudah tersimpan; jangan ulangi publikasi.' : ' Muat ulang daftar proyek.'}`,
+        ].filter(Boolean)
+        setMessage([savedMessage, ...warnings].join(' '))
       }
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Proyek gagal disimpan.') }
     finally { setBusy(false) }

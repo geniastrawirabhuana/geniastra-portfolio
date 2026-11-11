@@ -12,9 +12,9 @@ function noStore(body: object, status = 200) {
 function sameOrigin(request: NextRequest) { return request.headers.get('origin') === new URL(request.url).origin }
 
 export async function GET() {
-  if (!isSupabaseConfigured) return noStore({ configured: false, authenticated: false }, 503)
+  if (!isSupabaseConfigured) return noStore({ configured: false, authenticated: false, translationAvailable: false }, 503)
   const access = await getAdminAccess()
-  return noStore({ configured: true, authenticated: access.status === 'allowed', forbidden: access.status === 'forbidden' }, access.status === 'forbidden' ? 403 : 200)
+  return noStore({ configured: true, authenticated: access.status === 'allowed', forbidden: access.status === 'forbidden', translationAvailable: Boolean(process.env.DEEPL_AUTH_KEY?.trim()) }, access.status === 'forbidden' ? 403 : 200)
 }
 
 export async function POST(request: NextRequest) {

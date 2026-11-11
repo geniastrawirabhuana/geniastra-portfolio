@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicProjects } from '@/lib/revalidate-public-projects'
 import { adminAccessError, authorizeAdmin } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { loadAdminProjectRows, projectForAdmin } from '@/lib/supabase/admin-projects'
@@ -9,13 +9,6 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 type Context = { params: Promise<{ slug: string }> }
 function sameOrigin(request: NextRequest) { return request.headers.get('origin') === new URL(request.url).origin }
-function revalidateProjects(...slugs: string[]) {
-  for (const locale of ['id', 'en']) {
-    revalidatePath(`/${locale}`); revalidatePath(`/${locale}/projects`)
-    for (const slug of new Set(slugs.filter(Boolean))) revalidatePath(`/${locale}/projects/${slug}`)
-  }
-  revalidatePath('/sitemap.xml')
-}
 
 export async function PUT(request: NextRequest, { params }: Context) {
   if (!sameOrigin(request)) return NextResponse.json({ error: 'Permintaan tidak valid.' }, { status: 403 })
@@ -46,7 +39,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
   }
   const [saved] = await loadAdminProjectRows(supabase, [id]).catch(() => [])
   if (!saved) return NextResponse.json({ error: 'Proyek tersimpan, tetapi data belum dapat dimuat ulang.' }, { status: 500 })
-  revalidateProjects(oldSlug, bundle.project.slug)
+  revalidatePublicProjects(oldSlug, bundle.project.slug)
   return NextResponse.json({ project: projectForAdmin(saved), ...(cleanupWarning ? { warning: cleanupWarning } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
@@ -68,6 +61,6 @@ export async function DELETE(request: NextRequest, { params }: Context) {
     const { error: cleanupError } = await supabase.storage.from('portfolio-media').remove(paths)
     if (cleanupError) warning = 'Proyek dihapus, tetapi sebagian gambar yatim gagal dibersihkan dari Storage.'
   }
-  revalidateProjects(slug)
+  revalidatePublicProjects(slug)
   return NextResponse.json({ success: true, ...(warning ? { warning } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
 }

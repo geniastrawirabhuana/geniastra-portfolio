@@ -49,7 +49,7 @@ export function normalizeProjectBundle(value: unknown): ProjectBundle | undefine
   })
   if (media.length !== mediaInput.length) return undefined
   if (media.filter((item) => item.media_type === 'cover').length > 1) return undefined
-  if (status === 'published' && translations.some((row) => !row.title || !row.short_description || !row.description)) return undefined
+  if (status === 'published' && (translations.some((row) => !row.title || !row.short_description || !row.description) || !media.some((item) => item.media_type === 'cover'))) return undefined
   const project: Project = {
     ...(typeof input.id === 'string' && /^[0-9a-f-]{36}$/i.test(input.id) ? { id: input.id } : {}),
     slug, category, status, featured: input.featured === true,

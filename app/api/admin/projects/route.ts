@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePublicProjects } from '@/lib/revalidate-public-projects'
 import { adminAccessError, authorizeAdmin } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { loadAdminProjectRows, projectForAdmin } from '@/lib/supabase/admin-projects'
@@ -10,15 +10,6 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function sameOrigin(request: NextRequest) { return request.headers.get('origin') === new URL(request.url).origin }
-function revalidateProjects(...slugs: string[]) {
-  for (const locale of ['id', 'en']) {
-    revalidatePath(`/${locale}`)
-    revalidatePath(`/${locale}/projects`)
-    for (const slug of new Set(slugs.filter(Boolean))) revalidatePath(`/${locale}/projects/${slug}`)
-  }
-  revalidatePath('/sitemap.xml')
-}
-
 export async function GET() {
   if (!isSupabaseConfigured) return NextResponse.json({ error: 'Supabase belum dikonfigurasi.' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } })
   const { supabase, access } = await authorizeAdmin()
@@ -41,7 +32,7 @@ export async function POST(request: NextRequest) {
     const slug = `draft-${randomUUID()}`
     const { data, error } = await supabase.from('projects').insert({ slug, status: 'draft' }).select('id, slug').single()
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Draf gagal dibuat.' }, { status: 400 })
-    revalidateProjects(slug)
+    revalidatePublicProjects(slug)
     return NextResponse.json({ project: { id: data.id, slug: data.slug, status: 'draft', category: 'other', featured: false, display_order: 100, translations: { id: {}, en: {} }, media: [] } }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
   }
   const bundle = normalizeProjectBundle(body)
@@ -51,6 +42,6 @@ export async function POST(request: NextRequest) {
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Proyek gagal disimpan.' }, { status: 400 })
   const [saved] = await loadAdminProjectRows(supabase, [data]).catch(() => [])
   if (!saved) return NextResponse.json({ error: 'Proyek tersimpan, tetapi data belum dapat dimuat ulang.' }, { status: 500 })
-  revalidateProjects(bundle.project.slug)
+  revalidatePublicProjects(bundle.project.slug)
   return NextResponse.json({ project: projectForAdmin(saved) }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
 }

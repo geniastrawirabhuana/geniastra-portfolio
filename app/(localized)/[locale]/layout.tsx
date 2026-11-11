@@ -4,6 +4,7 @@ import '../../globals.css'
 import { PageShell } from '@/components/site'
 import { getSiteUrl, type Locale } from '@/lib/site-config'
 import { siteConfig } from '@/lib/site-config'
+import { getSiteContent } from '@/lib/site-content'
 
 export function generateStaticParams() { return [{ locale: 'id' }, { locale: 'en' }] }
 export const dynamicParams = false
@@ -32,8 +33,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: L
 export default async function LocaleLayout({ children, params }: Readonly<{ children: React.ReactNode; params: Promise<{ locale: string }> }>) {
   const { locale } = await params
   const typedLocale: Locale = locale === 'en' || locale === 'id' ? locale : 'id'
+  const content = await getSiteContent()
   const siteUrl = getSiteUrl()
   const person = siteUrl && { '@context': 'https://schema.org', '@type': 'Person', '@id': `${siteUrl.origin}/#person`, name: siteConfig.name, url: siteUrl.origin, jobTitle: 'Web Developer', address: { '@type': 'PostalAddress', addressLocality: 'Denpasar', addressCountry: 'ID' }, knowsAbout: ['Web Development', 'Project Management', 'Information Technology'] }
   const website = siteUrl && { '@context': 'https://schema.org', '@type': 'WebSite', '@id': `${siteUrl.origin}/#website`, url: siteUrl.origin, name: siteConfig.name }
-  return <html lang={typedLocale === 'id' ? 'id-ID' : 'en'}><body>{siteUrl && <><Script id="person-schema" type="application/ld+json">{JSON.stringify(person)}</Script><Script id="website-schema" type="application/ld+json">{JSON.stringify(website)}</Script></>}<PageShell locale={typedLocale}>{children}</PageShell></body></html>
+  return <html lang={typedLocale === 'id' ? 'id-ID' : 'en'}><body>{siteUrl && <><Script id="person-schema" type="application/ld+json">{JSON.stringify(person)}</Script><Script id="website-schema" type="application/ld+json">{JSON.stringify(website)}</Script></>}<PageShell locale={typedLocale} siteName={content.siteName}>{children}</PageShell></body></html>
 }

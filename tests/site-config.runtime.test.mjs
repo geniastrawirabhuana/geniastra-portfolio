@@ -23,10 +23,11 @@ function loadTypeScript(relativePath, dependencies = {}) {
 const configModule = loadTypeScript('lib/site-config.ts')
 const { getSiteUrl } = configModule
 const portfolio = loadTypeScript('content/portfolio.ts')
+const projects = { getPortfolioSlugs: async () => portfolio.projects.map((project) => project.slug) }
 const metadata = loadTypeScript('lib/metadata.ts', { './site-config': configModule })
 const sitemap = loadTypeScript('app/sitemap.ts', {
   '@/lib/site-config': configModule,
-  '@/content/portfolio': portfolio,
+  '@/lib/projects': projects,
 })
 const robots = loadTypeScript('app/robots.ts', { '@/lib/site-config': configModule })
 
@@ -44,13 +45,21 @@ function withEnvironment(environment, callback) {
   for (const key of environmentKeys) delete process.env[key]
   Object.assign(process.env, environment)
 
-  try {
-    return callback()
-  } finally {
+  const restore = () => {
     for (const key of environmentKeys) {
       if (original[key] === undefined) delete process.env[key]
       else process.env[key] = original[key]
     }
+  }
+
+  try {
+    const result = callback()
+    if (result && typeof result.then === 'function') return result.finally(restore)
+    restore()
+    return result
+  } catch (error) {
+    restore()
+    throw error
   }
 }
 
@@ -143,9 +152,9 @@ test('missing local production URL omits URL metadata', () => {
   })
 })
 
-test('public URL produces localized sitemap entries and robots reference', () => {
-  withEnvironment({ NODE_ENV: 'production', NEXT_PUBLIC_SITE_URL: 'https://geniastra.id' }, () => {
-    const entries = sitemap.default()
+test('public URL produces localized sitemap entries and robots reference', async () => {
+  await withEnvironment({ NODE_ENV: 'production', NEXT_PUBLIC_SITE_URL: 'https://geniastra.id' }, async () => {
+    const entries = await sitemap.default()
     assert.equal(entries.length, (portfolio.projects.length + 5) * 2)
     assert.equal(entries[0].url, 'https://geniastra.id/id')
     assert.deepEqual(entries[0].alternates.languages, {
@@ -157,9 +166,9 @@ test('public URL produces localized sitemap entries and robots reference', () =>
   })
 })
 
-test('missing local production URL yields an empty sitemap and no robots sitemap URL', () => {
-  withEnvironment({ NODE_ENV: 'production' }, () => {
-    assert.deepEqual(sitemap.default(), [])
+test('missing local production URL yields an empty sitemap and no robots sitemap URL', async () => {
+  await withEnvironment({ NODE_ENV: 'production' }, async () => {
+    assert.deepEqual(await sitemap.default(), [])
     assert.equal(robots.default().sitemap, undefined)
   })
 })

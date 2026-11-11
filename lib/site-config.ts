@@ -1,10 +1,10 @@
 export const siteConfig = {
-  name: 'GENIASTRA',
+  name: process.env.NEXT_PUBLIC_SITE_NAME?.trim() || 'GENIASTRA',
   fullName: 'Ida Bagus Geniastra Wirabhuana, S.Kom.',
-  email: '',
-  github: '',
-  linkedin: '',
-  cvPath: '',
+  email: process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || '',
+  github: process.env.NEXT_PUBLIC_GITHUB_URL?.trim() || '',
+  linkedin: process.env.NEXT_PUBLIC_LINKEDIN_URL?.trim() || '',
+  cvPath: process.env.NEXT_PUBLIC_CV_URL?.trim() || '',
 } as const
 
 export type Locale = 'id' | 'en'

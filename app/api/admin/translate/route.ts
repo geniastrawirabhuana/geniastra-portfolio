@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeAdmin, adminAccessError } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isAllowedAdminOrigin } from '@/lib/admin-origin'
 import { normalizeProjectSourceFields, MAX_TRANSLATION_REQUEST_BYTES } from '@/lib/translation/project-fields'
 import { translateProject } from '@/lib/translation/service'
 import { DeepLProviderError } from '@/lib/translation/deepl-client'
@@ -39,7 +40,7 @@ async function readLimitedJson(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get('origin') !== new URL(request.url).origin) return noStore({ error: 'Permintaan tidak valid.' }, 403)
+  if (!isAllowedAdminOrigin(request.headers.get('origin'), request.url)) return noStore({ error: 'Permintaan tidak valid.' }, 403)
   if (!isSupabaseConfigured) return noStore({ error: 'Supabase belum dikonfigurasi.' }, 503)
   const { access } = await authorizeAdmin()
   if (access.status !== 'allowed') return adminAccessError(access.status)

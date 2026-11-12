@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePublicProjects } from '@/lib/revalidate-public-projects'
 import { adminAccessError, authorizeAdmin } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isAllowedAdminOrigin } from '@/lib/admin-origin'
 import { createImageStoragePath, imageExtensionForBytes, ImagePersistenceError, IMAGE_MIME_TYPES, MAX_IMAGE_SIZE, uploadAndPersistImage } from '@/lib/admin-media'
 
 export const runtime = 'nodejs'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 function noStore(body: object, status = 200) { return NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } }) }
-function sameOrigin(request: NextRequest) { return request.headers.get('origin') === new URL(request.url).origin }
+function sameOrigin(request: NextRequest) { return isAllowedAdminOrigin(request.headers.get('origin'), request.url) }
 
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return noStore({ error: 'Permintaan tidak valid.' }, 403)

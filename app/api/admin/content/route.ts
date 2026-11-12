@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { adminAccessError, authorizeAdmin } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isAllowedAdminOrigin } from '@/lib/admin-origin'
 import { normalizeSiteContent } from '@/lib/admin-site-validation'
 import { getSiteContent, saveSiteContent } from '@/lib/site-content'
 
@@ -18,7 +19,7 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   if (!isSupabaseConfigured) return NextResponse.json({ error: 'Supabase belum dikonfigurasi; perubahan admin dinonaktifkan.' }, { status: 503 })
-  if (request.headers.get('origin') !== new URL(request.url).origin) return NextResponse.json({ error: 'Permintaan tidak valid.' }, { status: 403 })
+  if (!isAllowedAdminOrigin(request.headers.get('origin'), request.url)) return NextResponse.json({ error: 'Permintaan tidak valid.' }, { status: 403 })
   const { access } = await authorizeAdmin()
   if (access.status !== 'allowed') return adminAccessError(access.status)
   const body = await request.json().catch(() => null)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAdminAccess } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isAllowedAdminOrigin } from '@/lib/admin-origin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,9 @@ export const dynamic = 'force-dynamic'
 function noStore(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
 }
-function sameOrigin(request: NextRequest) { return request.headers.get('origin') === new URL(request.url).origin }
+function sameOrigin(request: NextRequest) {
+  return isAllowedAdminOrigin(request.headers.get('origin'), request.url)
+}
 
 export async function GET() {
   if (!isSupabaseConfigured) return noStore({ configured: false, authenticated: false, translationAvailable: false }, 503)

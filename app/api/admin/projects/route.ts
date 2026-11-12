@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePublicProjects } from '@/lib/revalidate-public-projects'
 import { adminAccessError, authorizeAdmin } from '@/lib/supabase/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isAllowedAdminOrigin } from '@/lib/admin-origin'
 import { loadAdminProjectRows, projectForAdmin } from '@/lib/supabase/admin-projects'
 import { adminProjectSnapshot } from '@/lib/supabase/admin-project-snapshot'
 import { bundleToJson, normalizeProjectBundle } from '@/lib/supabase/project-validation'
@@ -11,7 +12,7 @@ import { saveProjectWithRefresh } from '@/lib/supabase/save-project-with-refresh
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function sameOrigin(request: NextRequest) { return request.headers.get('origin') === new URL(request.url).origin }
+function sameOrigin(request: NextRequest) { return isAllowedAdminOrigin(request.headers.get('origin'), request.url) }
 export async function GET() {
   if (!isSupabaseConfigured) return NextResponse.json({ error: 'Supabase belum dikonfigurasi.' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } })
   const { supabase, access } = await authorizeAdmin()

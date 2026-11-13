@@ -32,8 +32,8 @@ export default async function Contact({ params }: { params: Promise<{ locale: st
       {links.length ? links.map((link) => <a key={link.label} href={link.href} className="flex items-center justify-between border border-[#dededb] p-5 hover:border-[#3559D8]">
         {link.label}<ArrowUpRight size={18} aria-hidden="true" />
       </a>) : <div className="border border-dashed border-[#cfcfca] p-5 text-sm text-[#646872]">{m.placeholder}</div>}
-      {content.cvUrl ? <a href={content.cvUrl} className="flex items-center justify-between border border-[#dededb] p-5 hover:border-[#3559D8]">
-        {locale === 'id' ? 'Unduh CV' : 'Download CV'}<ArrowUpRight size={18} aria-hidden="true" />
+      {content.cvUrl ? <a href={content.cvUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between border border-[#dededb] p-5 hover:border-[#3559D8]">
+        {locale === 'id' ? 'Lihat / unduh CV publik' : 'View / download public CV'}<ArrowUpRight size={18} aria-hidden="true" />
       </a> : <div className="border border-dashed border-[#cfcfca] p-5 text-sm text-[#646872]">{m.cv}</div>}
     </div>
   </main>

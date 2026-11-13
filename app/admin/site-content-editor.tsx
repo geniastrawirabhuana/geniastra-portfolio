@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { ArrowLeft, Save, Trash2 } from 'lucide-react'
+import { MAX_CV_FILE_SIZE } from '@/lib/cv-upload'
 
 type Localized = { id: string; en: string }
 type SiteContent = {
@@ -21,6 +22,11 @@ export function SiteContentEditor({ onBack }: { onBack: () => void }) {
   const [content, setContent] = useState<SiteContent | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [cvUploadBusy, setCvUploadBusy] = useState(false)
+  const [cvNeedsSave, setCvNeedsSave] = useState(false)
+  const [cvFileName, setCvFileName] = useState('')
+  const [cvUploadMessage, setCvUploadMessage] = useState('')
+  const cvFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/admin/content', { cache: 'no-store' })
@@ -46,7 +52,7 @@ export function SiteContentEditor({ onBack }: { onBack: () => void }) {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!content) return
+    if (!content || cvUploadBusy) return
     setBusy(true)
     setMessage('')
     const payload = {
@@ -59,10 +65,53 @@ export function SiteContentEditor({ onBack }: { onBack: () => void }) {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Konten gagal disimpan.')
       setMessage('Konten halaman berhasil disimpan.')
+      if (cvNeedsSave) {
+        setCvNeedsSave(false)
+        setCvUploadMessage('URL CV baru sudah tersimpan dan akan digunakan di halaman Kontak.')
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Konten gagal disimpan.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function uploadCv(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+
+    setCvFileName(file.name)
+    setCvUploadMessage('')
+    if (file.size <= 0 || file.size > MAX_CV_FILE_SIZE) {
+      setCvUploadMessage('Ukuran CV maksimal 5 MB.')
+      return
+    }
+    if (file.type !== 'application/pdf') {
+      setCvUploadMessage('Pilih file dengan format PDF.')
+      return
+    }
+
+    setCvUploadBusy(true)
+    setCvUploadMessage('Mengunggah CV…')
+    try {
+      const formData = new FormData()
+      formData.set('file', file)
+      const response = await fetch('/api/admin/cv', { method: 'POST', body: formData })
+      const data = await response.json()
+      if (!response.ok || typeof data.publicUrl !== 'string') {
+        throw new Error(data.error || 'CV gagal diunggah.')
+      }
+      setContent((current) => current
+        ? { ...current, contact: { ...current.contact, cvUrl: data.publicUrl } }
+        : current)
+      setCvNeedsSave(true)
+      setCvUploadMessage('CV berhasil diunggah. Klik “Simpan semua konten” untuk memperbarui tautan publik.')
+    } catch (error) {
+      setCvUploadMessage(error instanceof Error ? error.message : 'CV gagal diunggah. URL sebelumnya tetap digunakan.')
+    } finally {
+      setCvUploadBusy(false)
     }
   }
 
@@ -107,10 +156,10 @@ export function SiteContentEditor({ onBack }: { onBack: () => void }) {
         <h2 className="text-xl font-semibold">Kontak</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">{(['id', 'en'] as const).map((locale) => <label key={`contact-title-${locale}`} className={labelClass}>Judul ({locale === 'id' ? 'Indonesia' : 'English'})<input className={fieldClass} value={content.contact.title[locale]} onChange={(event) => setContent({ ...content, contact: { ...content.contact, title: { ...content.contact.title, [locale]: event.target.value } } })} required /></label>)}</div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">{(['id', 'en'] as const).map((locale) => <label key={`contact-text-${locale}`} className={labelClass}>Deskripsi ({locale === 'id' ? 'Indonesia' : 'English'})<textarea className={fieldClass} rows={3} value={content.contact.text[locale]} onChange={(event) => setContent({ ...content, contact: { ...content.contact, text: { ...content.contact.text, [locale]: event.target.value } } })} required /></label>)}</div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className={labelClass}>Email<input className={fieldClass} type="email" value={content.contact.email} onChange={(event) => setContent({ ...content, contact: { ...content.contact, email: event.target.value } })} /></label><label className={labelClass}>URL CV<input className={fieldClass} value={content.contact.cvUrl} onChange={(event) => setContent({ ...content, contact: { ...content.contact, cvUrl: event.target.value } })} placeholder="https://… atau /cv.pdf" /></label><label className={labelClass}>GitHub URL<input className={fieldClass} type="url" value={content.contact.github} onChange={(event) => setContent({ ...content, contact: { ...content.contact, github: event.target.value } })} /></label><label className={labelClass}>LinkedIn URL<input className={fieldClass} type="url" value={content.contact.linkedin} onChange={(event) => setContent({ ...content, contact: { ...content.contact, linkedin: event.target.value } })} /></label></div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className={labelClass}>Email<input className={fieldClass} type="email" value={content.contact.email} onChange={(event) => setContent({ ...content, contact: { ...content.contact, email: event.target.value } })} /></label><div className={labelClass}>CV PDF / URL<input className={fieldClass} aria-label="URL CV" value={content.contact.cvUrl} onChange={(event) => { setCvFileName(''); setCvNeedsSave(false); setCvUploadMessage(''); setContent({ ...content, contact: { ...content.contact, cvUrl: event.target.value } }) }} placeholder="https://… atau /cv.pdf" /><p className="mt-1 text-xs font-normal text-[#646872]">URL eksternal tetap dapat dimasukkan manual.</p><input ref={cvFileInputRef} id="cv-pdf-file-input" type="file" accept="application/pdf,.pdf" className="sr-only" aria-label="Pilih file CV PDF" onChange={uploadCv} /><div className="mt-3 flex flex-wrap items-center gap-3"><button type="button" disabled={cvUploadBusy} onClick={() => cvFileInputRef.current?.click()} className="rounded-lg border border-[#dededb] px-3 py-2 text-xs font-medium text-[#3559D8] disabled:cursor-not-allowed disabled:opacity-50">{cvUploadBusy ? 'Mengunggah CV…' : content.contact.cvUrl ? 'Ganti file CV PDF' : 'Pilih dan unggah CV PDF'}</button><span className="text-xs font-normal text-[#646872]">PDF, maksimal 5 MB</span></div>{cvFileName && <p className="mt-2 truncate text-xs font-normal text-[#45474d]" title={cvFileName}>File: {cvFileName}</p>}{cvUploadMessage && <p role="status" aria-live="polite" className="mt-2 text-xs font-normal text-[#45474d]">{cvUploadMessage}</p>}</div><label className={labelClass}>GitHub URL<input className={fieldClass} type="url" value={content.contact.github} onChange={(event) => setContent({ ...content, contact: { ...content.contact, github: event.target.value } })} /></label><label className={labelClass}>LinkedIn URL<input className={fieldClass} type="url" value={content.contact.linkedin} onChange={(event) => setContent({ ...content, contact: { ...content.contact, linkedin: event.target.value } })} /></label></div>
       </section>
 
-      <button disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-[#171717] px-5 py-3 text-sm font-medium text-white disabled:opacity-50"><Save size={16} />{busy ? 'Menyimpan…' : 'Simpan semua konten'}</button>
+      <button disabled={busy || cvUploadBusy} className="inline-flex items-center gap-2 rounded-lg bg-[#171717] px-5 py-3 text-sm font-medium text-white disabled:opacity-50"><Save size={16} />{busy ? 'Menyimpan…' : 'Simpan semua konten'}</button>
     </form>
   </main>
 }

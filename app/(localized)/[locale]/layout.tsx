@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Script from 'next/script'
 import '../../globals.css'
 import { PageShell } from '@/components/site'
+import { PublicMotionProvider } from '@/components/motion/public-motion-provider'
 import { getSiteUrl, type Locale } from '@/lib/site-config'
 import { siteConfig } from '@/lib/site-config'
 import { getSiteContent } from '@/lib/site-content'
@@ -37,5 +38,5 @@ export default async function LocaleLayout({ children, params }: Readonly<{ chil
   const siteUrl = getSiteUrl()
   const person = siteUrl && { '@context': 'https://schema.org', '@type': 'Person', '@id': `${siteUrl.origin}/#person`, name: siteConfig.name, url: siteUrl.origin, jobTitle: 'Web Developer', address: { '@type': 'PostalAddress', addressLocality: 'Denpasar', addressCountry: 'ID' }, knowsAbout: ['Web Development', 'Project Management', 'Information Technology'] }
   const website = siteUrl && { '@context': 'https://schema.org', '@type': 'WebSite', '@id': `${siteUrl.origin}/#website`, url: siteUrl.origin, name: siteConfig.name }
-  return <html lang={typedLocale === 'id' ? 'id-ID' : 'en'}><body>{siteUrl && <><Script id="person-schema" type="application/ld+json">{JSON.stringify(person)}</Script><Script id="website-schema" type="application/ld+json">{JSON.stringify(website)}</Script></>}<PageShell locale={typedLocale} siteName={content.siteName}>{children}</PageShell></body></html>
+  return <html lang={typedLocale === 'id' ? 'id-ID' : 'en'}><body>{siteUrl && <><Script id="person-schema" type="application/ld+json">{JSON.stringify(person)}</Script><Script id="website-schema" type="application/ld+json">{JSON.stringify(website)}</Script></>}<PublicMotionProvider><PageShell locale={typedLocale} siteName={content.siteName}>{children}</PageShell></PublicMotionProvider></body></html>
 }
